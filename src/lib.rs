@@ -2,7 +2,6 @@
 #[allow(unused_macros)]
 #[allow(dead_code)]
 
-
 pub mod types {
     use arduino_hal::port::mode::Output;
     use avr_hal_generic::{
@@ -33,7 +32,6 @@ pub mod types {
     pub type Led = arduino_hal::port::Pin<arduino_hal::port::mode::Output, atmega_hal::port::PB5>;
 }
 
-
 pub mod morse {
     use super::types::{Led, SerialWriter};
     use core::slice::Iter;
@@ -54,8 +52,6 @@ pub mod morse {
         pub const INTRA_SYM_GAP  : u16 = Time::T1 as u16;
         pub const INTRA_ASCII_GAP: u16 = Time::T2 as u16;
         pub const WORD_GAP       : u16 = Time::T3 as u16;
-        pub fn dot()  -> Time { Time::T1 }
-        pub fn dash() -> Time { Time::T2 }
     }
 
     #[repr(u8)]
@@ -132,7 +128,6 @@ pub mod morse {
 
         #[inline(always)]
         pub fn new() -> CircularBuffer {
-            
             CircularBuffer {
                buffer: ['\0'; CircularBuffer::MAX_SLOTS],
                current_slot: 0,
@@ -166,16 +161,15 @@ pub mod morse {
         #[inline(always)]
         pub fn debug(&mut self, serial: &mut SerialWriter) {
             let slot = self.current_slot();
-            ufmt::uwrite!(serial, "Tape-------------------\r\n").unwrap_infallible();
+            ufmt::uwrite!(serial, "Debug-------------------\r\n").unwrap_infallible();
             self.iter().enumerate().for_each(|(i,_)|   {
                 if i == slot { ufmt::uwrite!(serial, "V").unwrap_infallible() }
                 else         { ufmt::uwrite!(serial, " ").unwrap_infallible() }
             });
             ufmt::uwrite!(serial, "\r\n").unwrap_infallible();
 
-            self.iter().for_each(|c| {
-                ufmt::uwrite!(serial, "{}", c).unwrap_infallible()
-            });
+            self.iter().for_each(|c| { ufmt::uwrite!(serial, "{}", c).unwrap_infallible() });
+
             ufmt::uwrite!(serial, "\r\n").unwrap_infallible();
             ufmt::uwrite!(serial, "------------------------\r\n").unwrap_infallible();
         }
@@ -204,13 +198,6 @@ pub mod morse {
         }
         
         fn do_op(&mut self, op: EmitterOp) -> &mut Self {
-            if cfg!(debug_assertions) { 
-                self.write("\t[I] Begin::"); 
-                self.write(self.emitter.to_str());
-                self.write("::");
-                self.write(op.to_str());
-                self.write("\r\n");
-            }
             let op_duration = match op {
                 EmitterOp::Dot          => Time::DOT,
                 EmitterOp::Dash         => Time::DASH,
@@ -236,15 +223,7 @@ pub mod morse {
                                 arduino_hal::delay_ms(op_duration);
                             }
                     }
-
                 }
-            }
-            if cfg!(debug_assertions) { 
-                self.write("\t[I] End::"); 
-                self.write(self.emitter.to_str());
-                self.write("::");
-                self.write(op.to_str());
-                self.write("\r\n");
             }
             self 
         }
@@ -274,9 +253,7 @@ pub mod morse {
                 EmitterKind::LED => "EmitterKind::LED",
                 EmitterKind::CONSOLE => "EmitterKind::CONSOLE",
             }
-
         }
-
     }
 
     pub enum EmitterOp {
@@ -304,38 +281,35 @@ pub mod morse {
         #[inline(always)]
         pub fn new(led: Led, console: SerialWriter) -> Machine {
             let tape: CircularBuffer = CircularBuffer::new();
-            let mut emitter: Emitter = Emitter::new(led, console);
-            if cfg!(debug_assertions) { emitter.write("[I] Morse Code Machine Created\r\n"); }
-
+            let emitter: Emitter = Emitter::new(led, console);
             Machine { tape, emitter }
         }
+
         #[inline(always)]
         pub fn checked_insert_into_tape(&mut self, c: char) -> &mut Self {
             if Code::is_valid_ascii(&c) {
-                if cfg!(debug_assertions) { self.emitter.write("[I] Inserting Charater Into Tape\r\n"); }
                 self.tape.insert(c);
             }
             self
         }
+
         #[inline(always)]
         pub fn reset_tape(&mut self) -> &mut Self {
-            if cfg!(debug_assertions) { self.emitter.write("[I] Reset Tape\r\n"); }
             self.tape.clear();
             self
         }
+
         #[inline(always)]
         pub fn send_tape(&mut self) -> &mut Self {
-            if cfg!(debug_assertions) { self.emitter.write("[I] Begin::SendingTape\r\n"); }
             self.emit();
-            if cfg!(debug_assertions) { self.emitter.write("[I] End::SendingTape\r\n"); }
             self
         }
+        
         #[inline(always)]
         pub fn print_tape(&mut self) -> &mut Self {
-            if cfg!(debug_assertions) { self.emitter.write("[I] Print Tape\r\n"); }
 
             let slot = self.tape.current_slot();
-            self.emitter.write("Debug-------------------\r\n");
+            self.emitter.write("Tape-------------------\r\n");
             self.tape.iter().enumerate().for_each(|(i,_)|   {
                 if i == slot { self.emitter.write("V");  }
                 else         { self.emitter.write(" "); }
@@ -357,50 +331,42 @@ pub mod morse {
         pub fn get_emitter(&self) -> &Emitter {
             &self.emitter
         }
+
         #[inline(always)]
         pub fn switch_emitter(&mut self) -> &mut Self {
-            if cfg!(debug_assertions) { self.emitter.write("[I] Begin::ChangingEmitter\r\n"); }
-
             match self.emitter.emitter {
                 EmitterKind::LED     => { self.emitter.set_emitter(EmitterKind::CONSOLE); }
                 EmitterKind::CONSOLE => { self.emitter.set_emitter(EmitterKind::LED);     }
             }
-            if cfg!(debug_assertions) { self.emitter.write("[I] End::ChangingEmitter\r\n"); }
             self
         }   
 
         #[inline(always)]
         fn emit(&mut self) {
-            if cfg!(debug_assertions) { self.emitter.write("[I] Begin::emitting\r\n"); }
             self.tape.iter()
                   .for_each(|c| {
-                        if *c == '\0' { 
-                            if cfg!(debug_assertions) {
-                                self.emitter.write("[I] Null Byte, Skipping\r\n"); 
-                            }
-                            return;
-                        }
-                        if *c == ' ' {  self.emitter.word_gap(); return; }
+                      match *c {
+                          '\0' => { return; },
+                          ' '  => { self.emitter.word_gap(); return; },
+                          _    => {
+                                let symbols: &'static str = Code::char_to_symbol(c);                
+                                let num_syms: usize = symbols.len();
 
-                        let symbols: &'static str = Code::char_to_symbol(c);                
-                        let num_syms: usize = symbols.len();
-
-                        symbols.chars()
-                                      .into_iter()
-                                      .enumerate()
-                                      .for_each(|(i,s)| {
-                                            if i != 0 && i != num_syms { self.emitter.symbol_gap(); }
-                                            match s {
-                                                Symbols::DOT  => { self.emitter.dot(); return;  },
-                                                Symbols::DASH => { self.emitter.dash(); return; },
-                                                _             => ()
-                                            }
-                                    });
-                        self.emitter.character_gap();
+                                symbols.chars()
+                                              .into_iter()
+                                              .enumerate()
+                                              .for_each(|(i,s)| {
+                                                    if i != 0 && i != num_syms { self.emitter.symbol_gap(); }
+                                                    match s {
+                                                        Symbols::DOT  => { self.emitter.dot(); return;  },
+                                                        Symbols::DASH => { self.emitter.dash(); return; },
+                                                        _             => ()
+                                                    }
+                                            });
+                                self.emitter.character_gap();
+                          }
+                      }
             });
-            if cfg!(debug_assertions) { self.emitter.write("[I] End::emitting\r\n"); }
         }
-
-
     }
 }

@@ -7,12 +7,10 @@ use arduino_hal::prelude::*;
 
 use blinkie::morse;
 
-
-
 enum ControlSeq {}
 impl ControlSeq {
     // Toggle Controls
-    pub const ENABLE: char = '#';
+    pub const ENABLE:   char = '#';
     pub const EMITTER:  char = '[';
 
     // Single-Character Controls
@@ -24,21 +22,14 @@ impl ControlSeq {
 
 #[arduino_hal::entry]
 fn main() -> ! {
-    // Get foundational types.
     let dp = arduino_hal::Peripherals::take().unwrap();
     let pins = arduino_hal::pins!(dp);
-
-    // Set up pins and serial.
-    // Serial: Pulls bytes from serial connection one byte at a time.
-    //      Will only pull 3 bytes at consecutively before dropping 
-    //      the remainder of the buffer.
-    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+    let serial = arduino_hal::default_serial!(dp, pins, 57600);
     let led = pins.d13.into_output();
 
-    ufmt::uwriteln!(&mut serial, "Hello from Arduino!\r").unwrap_infallible();
-    
-    let mut enable: bool = false;
     let (mut reader, writer) = serial.split();
+
+    let mut enable: bool = false;
     let mut morse_code_machine: morse::Machine = morse::Machine::new(led, writer);
 
     loop {
