@@ -5,13 +5,7 @@
 use panic_halt as _;
 use arduino_hal::prelude::*;
 
-use blinkie::{
-    types::{
-        Led,
-        SerialConsole
-    },
-    morse
-};
+use blinkie::morse;
 
 
 
@@ -38,20 +32,17 @@ fn main() -> ! {
     // Serial: Pulls bytes from serial connection one byte at a time.
     //      Will only pull 3 bytes at consecutively before dropping 
     //      the remainder of the buffer.
-    let mut serial: SerialConsole = arduino_hal::default_serial!(dp, pins, 57600);
-    let led:              Led = pins.d13.into_output();
-    
+    let mut serial = arduino_hal::default_serial!(dp, pins, 57600);
+    let led = pins.d13.into_output();
+
     ufmt::uwriteln!(&mut serial, "Hello from Arduino!\r").unwrap_infallible();
     
     let mut enable: bool = false;
     let (mut reader, writer) = serial.split();
     let mut morse_code_machine: morse::Machine = morse::Machine::new(led, writer);
 
-
     loop {
-        let c: char = reader.read().unwrap() as char;
-        
-        //let c = nb::block!(serial.read()).unwrap_infallible() as char;
+        let c = nb::block!(reader.read()).unwrap_infallible() as char;
         match c {
             ControlSeq::ENABLE  => { enable = !enable;                           continue; },
             ControlSeq::EMITTER => { morse_code_machine.switch_emitter();        continue; },
@@ -59,7 +50,9 @@ fn main() -> ! {
             ControlSeq::DEBUG   => { morse_code_machine.print_tape();            continue; },
             ControlSeq::ENCODE  => { morse_code_machine.send_tape();             continue; },
             _ => { 
-                if enable { morse_code_machine.insert_into_tape(c); }         continue; }
+                if enable { morse_code_machine.checked_insert_into_tape(c); }
+                continue;
+            }
         }
         
     }
