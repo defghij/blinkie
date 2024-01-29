@@ -65,9 +65,11 @@ pub mod morse {
 
     pub struct Sequence(&'static str);
     impl Sequence {
+        #[inline(always)]
         pub fn chars(&self) -> core::str::Chars {
             self.0.chars()
         }
+        #[inline(always)]
         pub fn len(&self) -> usize {
             self.0.len()
         }
@@ -158,6 +160,16 @@ pub mod morse {
             self.buffer.iter()
         }
 
+        pub fn has_unused_slots(&self) -> bool {
+            let unused_slots = self.buffer.iter().filter(|c| {
+                match c {
+                    '\0' => true,
+                    _    => false,
+                }
+            }).count();
+            unused_slots > 0
+        }
+
         #[inline(always)]
         pub fn debug(&mut self, serial: &mut SerialWriter) {
             let slot = self.current_slot();
@@ -197,6 +209,7 @@ pub mod morse {
             self
         }
         
+        #[inline(always)]
         fn do_op(&mut self, op: EmitterOp) -> &mut Self {
             let op_duration = match op {
                 EmitterOp::Dot          => Time::DOT,
@@ -209,6 +222,7 @@ pub mod morse {
                 EmitterKind::CONSOLE => { 
                     self.write(op.to_str());
                     self.write("\r\n");
+                    arduino_hal::delay_ms(op_duration);
                 },
                 EmitterKind::LED     => { 
                     match op {
@@ -277,18 +291,21 @@ pub mod morse {
     pub struct Machine {
         tape: CircularBuffer,
         emitter: Emitter,
+        current_slot: usize,
+        end_slot: usize,
     } impl Machine {
         #[inline(always)]
         pub fn new(led: Led, console: SerialWriter) -> Machine {
             let tape: CircularBuffer = CircularBuffer::new();
             let emitter: Emitter = Emitter::new(led, console);
-            Machine { tape, emitter }
+            Machine { tape, emitter, current_slot: 0, end_slot: 0 }
         }
 
         #[inline(always)]
         pub fn checked_insert_into_tape(&mut self, c: char) -> &mut Self {
             if Code::is_valid_ascii(&c) {
                 self.tape.insert(c);
+                if self.end_slot < CircularBuffer::MAX_SLOTS { self.end_slot += 1; }
             }
             self
         }
@@ -296,6 +313,8 @@ pub mod morse {
         #[inline(always)]
         pub fn reset_tape(&mut self) -> &mut Self {
             self.tape.clear();
+            self.current_slot = 0;
+            self.end_slot = 0;
             self
         }
 
@@ -326,12 +345,45 @@ pub mod morse {
             self.emitter.write("------------------------\r\n");
             self
         }
+
+        #[inline(always)]
+        pub fn emit_and_step(&mut self) -> &mut Self {
+            let current_slot_char: char = self.tape.buffer[self.current_slot]; 
+
+            self.emit_character(&current_slot_char);
+            if self.current_slot != self.end_slot {
+                self.emitter.character_gap();
+            }
+            let next_slot = (self.current_slot + 1).rem_euclid(self.end_slot);
+            /*
+            match self.tape.buffer[next_slot] {
+                ' ' => { /* Will be taken care of on next call to `emit_and_step()` */ },
+                _   => { self.emitter.character_gap(); },
+            }
+            */
+            self.current_slot = next_slot;
+            self
+        }
         
         #[inline(always)]
-        pub fn get_emitter(&self) -> &Emitter {
-            &self.emitter
-        }
+        fn emit_character(&mut self, c: &char) -> &mut Self {
+            let symbols: &'static str = Code::char_to_symbol(c);                
+            let num_syms: usize = symbols.len();
 
+            symbols.chars()
+                          .into_iter()
+                          .enumerate()
+                          .for_each(|(i,s)| {
+                                if i != 0 && i != num_syms { self.emitter.symbol_gap(); }
+                                match s {
+                                    Symbols::DOT  => { self.emitter.dot(); return;  },
+                                    Symbols::DASH => { self.emitter.dash(); return; },
+                                    _             => ()
+                                }
+                        });
+            self
+        }
+        
         #[inline(always)]
         pub fn switch_emitter(&mut self) -> &mut Self {
             match self.emitter.emitter {
