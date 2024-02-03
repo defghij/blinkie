@@ -138,7 +138,7 @@ pub mod morse {
 
         #[inline(always)]
         pub fn clear(&mut self) -> &mut Self {
-            self.buffer = [' '; CircularBuffer::MAX_SLOTS];
+            self.buffer = ['\0'; CircularBuffer::MAX_SLOTS];
             self.current_slot = 0;
             self
         }
@@ -303,6 +303,7 @@ pub mod morse {
 
         #[inline(always)]
         pub fn checked_insert_into_tape(&mut self, c: char) -> &mut Self {
+            let c = c.to_ascii_lowercase();
             if Code::is_valid_ascii(&c) {
                 self.tape.insert(c);
                 if self.end_slot < CircularBuffer::MAX_SLOTS { self.end_slot += 1; }
@@ -386,10 +387,13 @@ pub mod morse {
         
         #[inline(always)]
         pub fn switch_emitter(&mut self) -> &mut Self {
+            self.emitter.write("Emitter: ");
             match self.emitter.emitter {
                 EmitterKind::LED     => { self.emitter.set_emitter(EmitterKind::CONSOLE); }
                 EmitterKind::CONSOLE => { self.emitter.set_emitter(EmitterKind::LED);     }
             }
+            self.emitter.write(self.emitter.emitter.to_str());
+            self.emitter.write("\n");
             self
         }   
 

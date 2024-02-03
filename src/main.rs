@@ -4,30 +4,8 @@
 
 use panic_halt as _;
 use arduino_hal::prelude::*;
-
 use blinkie::morse;
 
-#[allow(dead_code)]
-enum ControlSeq {
-    // Toggle Characters
-    Enable,
-    Emitter,
-    Mode,
-    // Control-Flow Characters
-    Encode,
-    Print,
-    Clear,
-    Halt
-}
-impl ControlSeq {
-    const ENABLE:  char = '#';
-    const EMITTER: char = '[';
-    const MODE:    char = ']';
-    const ENCODE:  char = '>';
-    const PRINT:   char = '*';
-    const CLEAR:   char = '<';
-    const HALT:    char = '~';
-}
 /*
     This is a _Morse Code_ called **Blinkie** application for the Arduino Uno
     written for the EN.605.715 Course. Some notes about the
@@ -51,10 +29,32 @@ Commands:
     '[' --Emitter: toggles the emitter type (LED|CONSOLE). [Toggle]
     ']' --Mode: toggles between Full Tape Readout and Continuous (or looping) modes. [Toggle]
     '>' --Encode: begins encoding and emitting of characters on the tape.
-    '*' --Print: displays the tape-- a circular buffer-- with an indicator of the current writable slot.
+    '*' --Print: displays the tape-- a circular buffer-- with an indicator of the current writeable slot.
     '<' --Clear: returns the tape to the initial state.
     '~' --Halt: stops the emitting operations when in Continuous mode.
 */
+
+#[allow(dead_code)]
+enum ControlSeq {
+    // Toggle Characters
+    Enable,
+    Emitter,
+    Mode,
+    // Control-Flow Characters
+    Encode,
+    Print,
+    Clear,
+    Halt
+}
+impl ControlSeq {
+    const ENABLE:  char = '#';
+    const EMITTER: char = '[';
+    const MODE:    char = ']';
+    const ENCODE:  char = '>';
+    const PRINT:   char = '*';
+    const CLEAR:   char = '<';
+    const HALT:    char = '~';
+}
 
 #[arduino_hal::entry]
 fn main() -> ! {
@@ -65,7 +65,7 @@ fn main() -> ! {
 
     let (mut reader, mut writer) = serial.split();
 
-    ufmt::uwrite!(writer, "{}","Welcome to Blinkie! You may begin now:\r\n").unwrap_infallible();
+    ufmt::uwrite!(writer, "{}","Welcome to Blink ie! You may begin now:\r\n").unwrap_infallible();
 
     let mut enable: bool = false;
     let mut continuous: bool = false;
